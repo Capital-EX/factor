@@ -1,10 +1,11 @@
 ! Copyright (C) 2022 CapitalEx
 ! See http://factorcode.org/license.txt for BSD license.
 USING: accessors arrays assocs combinators
-combinators.short-circuit compiler.units formatting hash-sets
-hashtables io io.encodings.utf8 io.files io.styles kernel
-namespaces sequences sequences.parser sets sorting strings 
-unicode vectors vocabs vocabs.loader vocabs.prettyprint 
+combinators.short-circuit combinators.smart compiler.units
+formatting grouping.extras hash-sets hashtables io
+io.encodings.utf8 io.files io.styles kernel namespaces sequences
+sequences.extras sequences.parser sets sorting splitting strings
+unicode vectors vocabs vocabs.loader vocabs.prettyprint
 vocabs.prettyprint.private ;
 FROM: namespaces => set ;
 IN: lint.vocabs
@@ -28,20 +29,33 @@ SYMBOL: cache
 
 
 ! Helper words
+: trim-spaces ( seq -- seq )
+    [ 32 = ] trim ;
+
+: dedup-nl ( seq -- seq )
+    dup [ 10 = ] all? [ members ] when ;
+
 : tokenize ( string -- sequence-parser )
-    <sequence-parser> ;
+    [ blank? ] group-by
+    [ last trim-spaces dedup-nl >string ] map-harvest ;
 
-: skip-after ( sequence-parser seq -- sequence-parser )
-   [ take-until-sequence* drop ] curry keep ;
+: split-at ( seq obj -- before after )
+    '[ _ = ] split1-when ;
 
-: skip-after* ( sequence-parser object -- sequence-parser )
-    [ take-until-object drop ] curry keep ;
+: take-until ( dst: sequence src: sequence token -- dst src )
+    split-at [ append ] dip ;
+
+: skip-after ( seq obj -- seq )
+    split-at nip ;
 
 : next-line ( sequence-parser -- sequence-parser )
     "\n" skip-after ;
 
-: quotation-mark? ( token -- ? )
-    first CHAR: " = ;
+: lone-quote? ( token -- ? )
+    { [ length 1 = ] [ first CHAR: " = ] } 1&& ;
+
+: ends-with-quote? ( token -- ? )
+    2 tail* { [ first CHAR: \ = not ] [ second CHAR: " = ] } 1&& ;
 
 : comment? ( token -- ? )
     "!" = ;
@@ -49,58 +63,51 @@ SYMBOL: cache
 : string-literal? ( token -- ? )
     first CHAR: " = ;
 
-
-! Words for parsing tokens
-DEFER: next-token
-
-: reject-token ( sequence-parser token -- string )
-    drop next-line next-token ;
-
-: accept-token ( sequence-parser token -- string )
-    nip >string ;
-
-: get-token ( sequence-parser -- token )
-    skip-whitespace [ current blank? ] take-until ;
-
-: next-token ( sequence-parser -- string )
-    dup get-token dup comment?
-        [ reject-token ] 
-        [ accept-token ] if ;
-
-: skip-token ( sequence-parser -- sequence-parser )
-    dup next-token drop  ;
-
-
 ! Words for removing syntax that should be ignored
-: ends-with-quote? ( token -- ? )
-    2 tail* [ first CHAR: \ = not ] 
-            [ second CHAR: " =    ] bi and ;
-
 : end-string? ( token -- ? )
-    dup length 1 = [ quotation-mark? ] [ ends-with-quote? ] if ;
+    { [ lone-quote? ] [ ends-with-quote? ] } 1|| ;
 
 : skip-string ( sequence-parser string -- sequence-parser )
-    end-string? not [ dup next-token skip-string ] when ;
+    end-string? [ unclip skip-string ] unless ;
 
 : ?handle-string ( sequence-parser string -- sequence-parser string/f )
     dup { [ empty? not ] [ string-literal? ] } 1&& [ skip-string f ] when ;
 
-: next-word/f ( sequence-parser -- sequence-parser string/f )
-    dup next-token {
+: lone-slash? ( string -- ? )
+    { [ length 1 = ] [ first CHAR: " = ] } 1&& ;
+
+: ends-with-slash? ( string -- ? )
+    2 tail* { [ first CHAR: \ = not  ] [ second CHAR: / = ] } 1&& ;
+
+: end-regex? ( string -- ? )
+    { [ lone-slash? ] [ ends-with-slash? ] } 1|| ;
+
+: skip-regex ( vector -- vector )
+    unclip end-regex? [ skip-regex ] unless ;
+
+: parse-ebnf ( vector -- vector )
+    ;
+
+: parse-ebnf-string ( vector string -- vector )
+    drop ;
+
+: next-word/f ( vector -- vector string/f )
+    unclip {
         ! skip over empty tokens
         { "" [ f ] }
+        { "\n" [ f ] }
 
         ! prune syntax stuff
         { "FROM:"     [ ";" skip-after f ] }
         { "SYMBOLS:"  [ ";" skip-after f ] }
-        { "R/"        [ "/" skip-after f ] }
+        { "R/"        [     skip-regex f ] }
         { "("         [ ")" skip-after f ] }
-        { "IN:"       [     skip-token f ] }
-        { "SYMBOL:"   [     skip-token f ] }
-        { ":"         [     skip-token f ] }
-        { "POSTPONE:" [     skip-token f ] }
-        { "\\"        [     skip-token f ] }
-        { "CHAR:"     [     skip-token f ] }
+        { "IN:"       [     rest f ] }
+        { "SYMBOL:"   [     rest f ] }
+        { ":"         [     rest f ] }
+        { "POSTPONE:" [     rest f ] }
+        { "\\"        [     rest f ] }
+        { "CHAR:"     [     rest f ] }
 
         ! comments
         { "!"           [             next-line f ] }
@@ -115,23 +122,24 @@ DEFER: next-token
         { "![======["   [ "]======]" skip-after f ] }
 
         ! strings (special case needed for `"`)
-        { "STRING:"    [ ";"        skip-after f ] }
-        { "[["         [ "]]"       skip-after f ] }
-        { "[=["        [ "]=]"      skip-after f ] }
-        { "[==["       [ "]==]"     skip-after f ] }
-        { "[===["      [ "]===]"    skip-after f ] }
+        { "STRING:"    [ ";"        skip-after "STRING:" ] }
+        { "[["         [ "]]"       skip-after "[[" ] }
+        { "[=["        [ "]=]"      skip-after "[=[" ] }
+        { "[==["       [ "]==]"     skip-after "[==[" ] }
+        { "[===["      [ "]===]"    skip-after "[===[" ] }
         { "[====["     [ "]====]"   skip-after f ] }
         { "[=====["    [ "]=====]"  skip-after f ] }
         { "[======["   [ "]======]" skip-after f ] }
 
         ! EBNF
-        { "EBNF[["         [ "]]"       skip-after f ] }
-        { "EBNF[=["        [ "]=]"      skip-after f ] }
-        { "EBNF[==["       [ "]==]"     skip-after f ] }
-        { "EBNF[===["      [ "]===]"    skip-after f ] }
-        { "EBNF[====["     [ "]====]"   skip-after f ] }
-        { "EBNF[=====["    [ "]=====]"  skip-after f ] }
-        { "EBNF[======["   [ "]======]" skip-after f ] }
+        { "EBNF:"          [            parse-ebnf drop f ] }
+        { "EBNF[["         [ "]]"       parse-ebnf-string f ] }
+        { "EBNF[=["        [ "]=]"      parse-ebnf-string f ] }
+        { "EBNF[==["       [ "]==]"     parse-ebnf-string f ] }
+        { "EBNF[===["      [ "]===]"    parse-ebnf-string f ] }
+        { "EBNF[====["     [ "]====]"   parse-ebnf-string f ] }
+        { "EBNF[=====["    [ "]=====]"  parse-ebnf-string f ] }
+        { "EBNF[======["   [ "]======]" parse-ebnf-string f ] }
         
         ! Annotations
         { "!AUTHOR"    [ next-line f ] }
@@ -149,16 +157,21 @@ DEFER: next-token
         [ ]
     } case ?handle-string ;
 
-: ?push ( vector sequence-parser string/? -- vector sequence-parser )
-    [ [ swap [ push ] keep ] curry dip ] when* ;
+GENERIC: ?add-tokens ( vector vector string -- vector )
+M: string ?add-tokens
+    [ '[ _ suffix ] dip ] when* ;
+
+M: vector ?add-tokens ( vector vector vector -- vector )
+    [ '[ _ append ] dip ] when* ;
+
+: ?push ( vector vector string/? -- vector vector )
+    [ '[ _ suffix ] dip ] when* ;
 
 : ?keep-parsing-with ( vector sequence-parser quot -- vector )
-    [ dup sequence-parse-end? not ] dip
-        [ call( x x -- x ) ] curry [ drop ] if ;
+    [ dup empty? not ] dip '[ @ ] [ drop ] if ; inline
 
 : (strip-code) ( vector sequence-praser -- vector )
-    skip-whitespace next-word/f ?push 
-        [ (strip-code) ] ?keep-parsing-with harvest ;
+    next-word/f ?push [ (strip-code) ] ?keep-parsing-with harvest ;
 
 : strip-code ( string -- string )
     tokenize V{ } clone swap (strip-code) ;
@@ -166,31 +179,31 @@ DEFER: next-token
 
 ! Words for finding the words used in a program
 ! and stripping out import statements
-: skip-imports ( sequence-parser -- sequence-parser string/? )
-    dup next { 
-        { "USING:"  [ ";" skip-after* f ] }
-        { "USE:"    [        advance  f ] }
+: skip-imports ( vector -- vector string/? )
+    unclip {
+        { "USING:"  [ ";" skip-after  f ] }
+        { "USE:"    [           rest  f ] }
         [ ]
     } case ;
 
-: take-imports ( sequence-parser -- vector )
-    dup next {
-        { "USING:" [ ";" take-until-object ] }
-        { "USE:"   [  1  take-n ] }
-        [ 2drop f ]
+: take-imports ( vector -- rest result )
+    unclip {
+        { "USING:" [ ";" split-at swap ] }
+        { "USE:"   [        1 cut swap ] }
+        [ drop f ]
     } case ;
 
 : (find-used-words) ( vector sequence-parser -- vector )
-    skip-imports ?push [ (find-used-words) ] ?keep-parsing-with ;
+    skip-imports ?add-tokens [ (find-used-words) ] ?keep-parsing-with ;
 
 : find-used-words ( vector -- set )
-    <sequence-parser> V{ } clone swap (find-used-words) fast-set ;
+    V{ } clone swap (find-used-words) fast-set ;
 
 : (find-imports) ( vector sequence-parser -- vector )
-    dup take-imports rot prepend swap [ (find-imports) ] ?keep-parsing-with ;
+    take-imports rot prepend swap [ (find-imports) ] ?keep-parsing-with ;
 
 : find-imports ( vector -- seq )
-    <sequence-parser> V{ } clone swap (find-imports) dup cache set ;
+    V{ } clone swap (find-imports) dup cache set ;
 
 : (get-words) ( name -- vocab )
     dup load-vocab words>> keys 2array ;
@@ -230,9 +243,12 @@ DEFER: next-token
 
 PRIVATE>
 
-: find-unused-in-string ( string -- seq )
-    strip-code [ get-imported-words ] [ find-used-words ] bi
+: ?find-unused-in-string ( vector -- array )
+    [ get-imported-words ] [ find-used-words ] bi
         reject-unused-vocabs natural-sort ;
+
+: find-unused-in-string ( string -- seq )
+    strip-code [ empty? not ] [ ?find-unused-in-string ] smart-when >array ;
 
 : find-unused-in-file ( path -- seq )
     utf8 file-contents find-unused-in-string ;

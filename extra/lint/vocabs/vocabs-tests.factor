@@ -47,17 +47,6 @@ CONSTANT: empty-using-statement     "USING: ; nop ( -- ) ;"
 : ---- ( -- ) "-------------------------------------------------------------------------" print ;
 PRIVATE>
 
-"next-token should get the next non-blank string in the stream:" print
-{ "hello" } [ "hello world!"              <sequence-parser> next-token ] unit-test
-{ "hello" } [ "\n    hello \n world!    " <sequence-parser> next-token ] unit-test
-
-----
-
-"next-token should ignore comments:" print
-{ "world!" } [ "! hello\nworld!"                 <sequence-parser> next-token ] unit-test
-{ "world!" } [ "! h\n! e\n! l\n! l\n! o\nworld!" <sequence-parser> next-token ] unit-test
-
-----
 
 "It should work on multiple lines, with multiple imports across the file: " print
 
