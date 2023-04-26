@@ -85,16 +85,26 @@ SYMBOL: cache
 : skip-regex ( vector -- vector )
     unclip end-regex? [ skip-regex ] unless ;
 
-: parse-ebnf ( vector -- vector )
-    ;
+: to-ending ( string -- string ) 
+    "[" "]" replace ;
 
-: parse-ebnf-string ( vector string -- vector )
-    drop ;
+: (parse-ebnf-string) ( end acc code -- code acc )
+    unclip {
+        { "[[" [ "]]" take-until t ] }
+        { "?[" [ "]?" take-until t ] }
+        [ reach = not ]
+    } case [ (parse-ebnf-string) ] [ nipd swap ] if ;
+
+: parse-ebnf-string ( code end -- vector vector )
+    swap [ V{ } clone ] dip (parse-ebnf-string) ;
+
+: parse-ebnf ( vector -- vector vector )
+    rest unclip to-ending parse-ebnf-string ;
 
 : next-word/f ( vector -- vector string/f )
     unclip {
         ! skip over empty tokens
-        { "" [ f ] }
+        { ""   [ f ] }
         { "\n" [ f ] }
 
         ! prune syntax stuff
@@ -102,66 +112,65 @@ SYMBOL: cache
         { "SYMBOLS:"  [ ";" skip-after f ] }
         { "R/"        [     skip-regex f ] }
         { "("         [ ")" skip-after f ] }
-        { "IN:"       [     rest f ] }
-        { "SYMBOL:"   [     rest f ] }
-        { ":"         [     rest f ] }
-        { "POSTPONE:" [     rest f ] }
-        { "\\"        [     rest f ] }
-        { "CHAR:"     [     rest f ] }
+        { "IN:"       [     rest       f ] }
+        { "SYMBOL:"   [     rest       f ] }
+        { ":"         [     rest       f ] }
+        { "POSTPONE:" [     rest       f ] }
+        { "\\"        [     rest       f ] }
+        { "CHAR:"     [     rest       f ] }
 
         ! comments
-        { "!"           [             next-line f ] }
-        { "(("          [ "))"       skip-after f ] }
-        { "/*"          [ "*/"       skip-after f ] }
-        { "![["         [ "]]"       skip-after f ] }
-        { "![=["        [ "]=]"      skip-after f ] }
-        { "![==["       [ "]==]"     skip-after f ] }
-        { "![===["      [ "]===]"    skip-after f ] }
-        { "![====["     [ "]====]"   skip-after f ] }
-        { "![=====["    [ "]=====]"  skip-after f ] }
-        { "![======["   [ "]======]" skip-after f ] }
+        { "!"           [             next-line f           ] }
+        { "(("          [ "))"       skip-after "(("        ] }
+        { "/*"          [ "*/"       skip-after "/*"        ] }
+        { "![["         [ "]]"       skip-after "![["       ] }
+        { "![=["        [ "]=]"      skip-after "![=["      ] }
+        { "![==["       [ "]==]"     skip-after "~[==["     ] }
+        { "![===["      [ "]===]"    skip-after "![===["    ] }
+        { "![====["     [ "]====]"   skip-after "![====["   ] }
+        { "![=====["    [ "]=====]"  skip-after "![=====["  ] }
+        { "![======["   [ "]======]" skip-after "![======[" ] }
 
         ! strings (special case needed for `"`)
-        { "STRING:"    [ ";"        skip-after "STRING:" ] }
-        { "[["         [ "]]"       skip-after "[[" ] }
-        { "[=["        [ "]=]"      skip-after "[=[" ] }
-        { "[==["       [ "]==]"     skip-after "[==[" ] }
-        { "[===["      [ "]===]"    skip-after "[===[" ] }
-        { "[====["     [ "]====]"   skip-after f ] }
-        { "[=====["    [ "]=====]"  skip-after f ] }
-        { "[======["   [ "]======]" skip-after f ] }
+        { "STRING:"    [ ";"        skip-after "STRING:"  ] }
+        { "[["         [ "]]"       skip-after "[["       ] }
+        { "[=["        [ "]=]"      skip-after "[=["      ] }
+        { "[==["       [ "]==]"     skip-after "[==["     ] }
+        { "[===["      [ "]===]"    skip-after "[===["    ] }
+        { "[====["     [ "]====]"   skip-after "[====["   ] }
+        { "[=====["    [ "]=====]"  skip-after "[=====["  ] }
+        { "[======["   [ "]======]" skip-after "[======[" ] }
 
         ! EBNF
-        { "EBNF:"          [            parse-ebnf drop f ] }
-        { "EBNF[["         [ "]]"       parse-ebnf-string f ] }
-        { "EBNF[=["        [ "]=]"      parse-ebnf-string f ] }
-        { "EBNF[==["       [ "]==]"     parse-ebnf-string f ] }
-        { "EBNF[===["      [ "]===]"    parse-ebnf-string f ] }
-        { "EBNF[====["     [ "]====]"   parse-ebnf-string f ] }
-        { "EBNF[=====["    [ "]=====]"  parse-ebnf-string f ] }
-        { "EBNF[======["   [ "]======]" parse-ebnf-string f ] }
+        { "EBNF:"          [            parse-ebnf        ] }
+        { "EBNF[["         [ "]]"       parse-ebnf-string ] }
+        { "EBNF[=["        [ "]=]"      parse-ebnf-string ] }
+        { "EBNF[==["       [ "]==]"     parse-ebnf-string ] }
+        { "EBNF[===["      [ "]===]"    parse-ebnf-string ] }
+        { "EBNF[====["     [ "]====]"   parse-ebnf-string ] }
+        { "EBNF[=====["    [ "]=====]"  parse-ebnf-string ] }
+        { "EBNF[======["   [ "]======]" parse-ebnf-string ] }
         
         ! Annotations
-        { "!AUTHOR"    [ next-line f ] }
-        { "!BROKEN"    [ next-line f ] }
-        { "!BUG"       [ next-line f ] }
-        { "!FIXME"     [ next-line f ] }
-        { "!LICENSE"   [ next-line f ] }
-        { "!LOL"       [ next-line f ] }
-        { "!NOTE"      [ next-line f ] }
-        { "!REVIEW"    [ next-line f ] }
-        { "!TODO"      [ next-line f ] }
-        { "!XXX"       [ next-line f ] }
+        { "!LICENSE"   [ next-line "!LICENSE" ] }
+        { "!AUTHOR"    [ next-line "!AUTHOR"  ] }
+        { "!BROKEN"    [ next-line "!BROKEN"  ] }
+        { "!REVIEW"    [ next-line "!REVIEW"  ] }
+        { "!FIXME"     [ next-line "!FIXME"   ] }
+        { "!NOTE"      [ next-line "!NOTE"    ] }
+        { "!TODO"      [ next-line "!TODO"    ] }
+        { "!BUG"       [ next-line "!BUG"     ] }
+        { "!LOL"       [ next-line "!LOL"     ] }
+        { "!XXX"       [ next-line "!XXX"     ] }
         
-
         [ ]
     } case ?handle-string ;
 
-GENERIC: ?add-tokens ( vector vector string -- vector )
-M: string ?add-tokens
+GENERIC: ?add-tokens ( vector vector string -- vector vector )
+M: string ?add-tokens ( vector vector vector -- vector vector )
     [ '[ _ suffix ] dip ] when* ;
 
-M: vector ?add-tokens ( vector vector vector -- vector )
+M: vector ?add-tokens ( vector vector vector -- vector vector )
     [ '[ _ append ] dip ] when* ;
 
 : ?push ( vector vector string/? -- vector vector )
