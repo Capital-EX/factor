@@ -5,7 +5,7 @@ combinators.short-circuit compiler.units formatting hash-sets
 hashtables io io.encodings.utf8 io.files io.styles kernel
 namespaces sequences sequences.parser sets sorting strings 
 unicode vectors vocabs vocabs.loader vocabs.prettyprint 
-vocabs.prettyprint.private ;
+vocabs.prettyprint.private math math.functions ;
 FROM: namespaces => set ;
 IN: lint.vocabs
 
