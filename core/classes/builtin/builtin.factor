@@ -1,7 +1,8 @@
 ! Copyright (C) 2004, 2010 Slava Pestov.
 ! See https://factorcode.org/license.txt for BSD license.
-USING: classes classes.algebra.private classes.private kernel
-kernel.private make namespaces sequences words ;
+USING: accessors classes classes.algebra classes.algebra.private
+classes.private kernel kernel.private make namespaces sequences
+sets words ;
 IN: classes.builtin
 
 SYMBOL: builtins
@@ -25,4 +26,6 @@ M: builtin-class (classes-intersect?) eq? ;
 
 : full-cover ( -- ) builtins get [ (flatten-class) ] each ;
 
-M: anonymous-complement (flatten-class) drop full-cover ;
+M: anonymous-complement (flatten-class) 
+    class>> flatten-class builtins get 
+    swap diff [ (flatten-class) ] each ;
