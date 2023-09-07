@@ -42,7 +42,8 @@ $nl
 
 HELP: flatten-class
 { $values { "class" class } { "seq" { $sequence class } } }
-{ $description "Outputs a set of builtin and tuple classes whose union is the smallest cover of " { $snippet "class" } "." } ;
+{ $description "Outputs a set of builtin and tuple classes whose union is the smallest cover of " { $snippet "class" } "." } 
+{ $warning { $link anonymous-complement } "s will always return all builtins do to limitations with resolving membership."  } ;
 
 HELP: class<=
 { $values { "first" class } { "second" class } { "?" boolean } }
