@@ -1,0 +1,59 @@
+html {
+    line-height: 1.15;
+}
+
+body {
+    background-color: rgb(204, 204, 204);
+    font-family: sans-serif;
+    padding: 10px;
+    margin: 0px;
+}
+
+h1 {
+  font-size: 2em;
+  margin: 0.67em 0px;
+}
+
+ul {
+  padding-left: 0.5rem;
+  list-style-type: disclosure-closed;
+}
+
+#main {
+    display: flex;
+}
+
+#sidebar {
+    width: 15em;
+    height: min-content;
+    max-height: calc(-10px + 95vh);
+    position: sticky;
+    top: 10px;
+    margin-right: 10px;
+    overflow: scroll;
+}
+
+#sitemap {
+    column-count: 3 ;
+}
+
+#sitemap h1 {
+    column-span: all;
+    margin-top: 0;
+}
+
+#main-article, #sitemap {
+    width: 40em;
+    height: min-content;
+}
+
+#sidebar, #main-article, #sitemap {
+    border: 1px solid black;
+    padding: 15px;
+    background-color: rgb(255, 255, 255);
+}
+
+
+.listing {
+    break-inside: avoid;
+}

@@ -1,0 +1,16 @@
+<?xml version='1.0' ?>
+<t:chloe xmlns:t="http://factorcode.org/chloe/1.0">
+    <section id="sitemap">
+        <h1>Site Map</h1>
+        <t:bind-each t:name="sitemap">
+            <section class="listing">
+                <h3><t:label t:name="category"/></h3>
+                <ul>
+                    <t:bind-each t:name="members">
+                        <li><a href="@filename"><t:label t:name="title"/></a></li>
+                    </t:bind-each>
+                </ul>
+            </section>
+        </t:bind-each>
+    </section>
+</t:chloe>

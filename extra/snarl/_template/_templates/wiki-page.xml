@@ -1,0 +1,36 @@
+<?xml version='1.0' ?>
+<t:chloe xmlns:t="http://factorcode.org/chloe/1.0">
+    <html>
+        <head>
+           <link rel="stylesheet" type="text/css" href="styles.css" />
+           <link rel="stylesheet" type="text/css" href="syntax.css" />
+           <title><t:label t:name="title"/></title>
+        </head>
+        <body>
+            <section id="main">
+                <nav id="sidebar">
+                    <h2><a href="index.html">The Wool Pile</a></h2>
+                    <p><a href="sitemap.html">Site Map</a></p>
+                    <t:if t:value="has headers">
+                        <h4>Headers</h4>
+                        <t:bind-each t:name="headers">
+                            <ul id="header-list">
+                                <li><a href="@id"><t:label t:name="text"/></a></li>
+                            </ul>
+                        </t:bind-each>
+                    </t:if>
+                    <t:if t:value="has backlinks">
+                        <hr/>
+                        <h4 id="inbound-links">In Bound Links</h4>
+                        <ul id="link-list">
+                            <t:bind-each t:name="backlinks">
+                                <li><a href="@url"><t:label t:name="display"/></a></li>
+                            </t:bind-each>
+                        </ul>
+                    </t:if>
+                </nav>
+                <t:call-next-template/>
+            </section>
+        </body>
+    </html>
+</t:chloe>
